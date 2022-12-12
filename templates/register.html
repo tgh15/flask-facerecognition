@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .box{
+            width: 250px;
+            height: 250px;
+            background:
+                linear-gradient(to right, red 4px, transparent 4px) 0 0,
+                linear-gradient(to right, red 4px, transparent 4px) 0 100%,
+                linear-gradient(to left, red 4px, transparent 4px) 100% 0,
+                linear-gradient(to left, red 4px, transparent 4px) 100% 100%,
+                linear-gradient(to bottom, red 4px, transparent 4px) 0 0,
+                linear-gradient(to bottom, red 4px, transparent 4px) 100% 0,
+                linear-gradient(to top, red 4px, transparent 4px) 0 100%,
+                linear-gradient(to top, red 4px, transparent 4px) 100% 100%;
+
+            background-repeat: no-repeat;
+            background-size: 40px 40px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="320" height="240" class="hidden"></canvas>
+    <div class="w-full min-h-screen bg-blue-200 grid place-items-center">
+        <div class="w-3/4 h-3/4 bg-red-200 grid grid-cols-3">
+            <div class="col-span-2 overflow-hidden relative">
+                <button class=" p-2 bg-yellow-400 mt-4 mr-2 font-bold text-white rounded-md absolute bottom-4 inset-x-1/3 z-10" id="capture">Capture</button>
+                <h1 class="absolute p-2 bg-white text-red-700 font-semibold">Pastikan wajah terlihat jelas dan mendapatkan cahaya yang cukup!</h1>
+                <div class="absolute top-0 bottom-0 left-0 right-0 grid place-items-center">
+                    <div class="box"></div>
+                </div>
+                <video autoplay="true" id="video-webcam" class="w-full">
+                    Browsermu tidak mendukung!
+                </video>
+            </div>
+            <div class="p-4 bg-white relative">
+                <h1 class="text-center font-bold text-xl">Selamat Datang</h1>
+                <input type="text" id="username" class="w-full p-4 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 mt-4" placeholder="username">
+                <!-- <input type="password" class="w-full p-4 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 mt-4" placeholder="password"> -->
+                <div class="w-full overflow-hidden mt-4">
+                    <img id="result" src="" alt="">
+                </div>
+                <div class="flex absolute bottom-4 right-4 left-4">
+                    <!-- <button class="w-full p-2 bg-blue-400 mt-4 mr-2 font-bold text-white rounded-md" id="login">Login</button> -->
+                    <button class="w-full p-2 bg-green-400 mt-4 font-bold text-white rounded-md" id="register">Register</button>
+                </div>
+            </div>
+        </div>
+    </div><script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script type="text/javascript">
+        // seleksi elemen video
+        const video = document.querySelector("#video-webcam");
+        const loginBtn = document.querySelector("#login")
+        const registerBtn = document.querySelector("#register")
+        const captureBtn = document.querySelector("#capture")
+        let canvas = document.querySelector("#canvas");
+        const imgtag = document.querySelector("#result")
+        const username= document.querySelector("#username")
+        let img_url
+
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer)
+                toast.addEventListener('mouseleave', Swal.resumeTimer)
+            }
+        })
+        // minta izin user
+        navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia || navigator.oGetUserMedia;
+    
+        // jika user memberikan izin
+        if (navigator.getUserMedia) {
+            // jalankan fungsi handleVideo, dan videoError jika izin ditolak
+            navigator.getUserMedia({ video: true }, handleVideo, videoError);
+        }
+    
+        // fungsi ini akan dieksekusi jika  izin telah diberikan
+        function handleVideo(stream) {
+            video.srcObject = stream;
+        }
+    
+        // fungsi ini akan dieksekusi kalau user menolak izin
+        function videoError(e) {
+            // do something
+            alert("Izinkan menggunakan webcam untuk demo!")
+        }
+
+        captureBtn.addEventListener('click', async function(){
+            canvas.getContext('2d').drawImage(video, 0,0, canvas.width, canvas.height)
+            img_url = canvas.toDataURL('image/jpeg')
+
+            await fetch('/video',{
+                method: 'POST',
+                headers :{
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body:JSON.stringify({
+                    image : img_url
+                })
+            })
+            .then(function(res){ return res.json(); })
+            .then(function(data){ 
+                if(data.face_detected != 1){
+                    return Toast.fire({
+                        icon: 'error',
+                        title: 'Wajah tidak dideteksi atau terdeteksi lebih 1 wajah'
+                    })
+                }
+                imgtag.src = "data:image/jpeg;base64,"+data.image
+                console.log(data.face_detected)
+            })
+        })
+
+        registerBtn.addEventListener('click', async () => {
+            if(img_url == '' && username.value ==''){
+                return Toast.fire({
+                    icon: 'error',
+                    title: 'lengkapi username atau capture wajah'
+                })
+            }
+            await fetch('register', {
+                method: 'POST',
+                headers :{
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body:JSON.stringify({
+                    image : img_url,
+                    username : username.value
+                })
+            })
+            .then(function(res){ return res.json(); })
+            .then(function(data){ 
+                if(data.success){
+                    return Toast.fire({
+                        icon: 'success',
+                        title: data.message
+                    })
+                }
+                return Toast.fire({
+                    icon: 'error',
+                    title: data.message
+                })
+            })
+        })
+
+    </script>
+</body>
+</html>
